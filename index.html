@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>杨磊专用数据合并工具</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 600px;
+        }
+        .row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .row label {
+            width: 150px;
+            font-size: 16px;
+        }
+        .row input[type="file"], .row select {
+            flex: 1;
+            font-size: 16px;
+        }
+        button {
+            font-size: 16px;
+            padding: 10px 20px;
+            margin-top: 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button.upload {
+            background-color: #4CAF50;
+            color: white;
+        }
+        button.process {
+            background-color: #FF9800;
+            color: white;
+        }
+        button.download {
+            background-color: #2196F3;
+            color: white;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Excel 数据匹配工具</h1>
+        <div class="row">
+            <label for="fileA">请选择 A 表文件</label>
+            <input type="file" id="fileA" accept=".xlsx, .xls">
+        </div>
+        <div class="row">
+            <label for="filterA">筛选 A 表</label>
+            <select id="filterA" style="display: none;"></select>
+        </div>
+        <div class="row">
+            <label for="valueColumn">取值列</label>
+            <select id="valueColumn" style="display: none;"></select>
+        </div>
+        <div class="row">
+            <label for="fileB">请选择 B 表文件</label>
+            <input type="file" id="fileB" accept=".xlsx, .xls">
+        </div>
+        <div class="row">
+            <label for="filterB">筛选 B 表</label>
+            <select id="filterB" style="display: none;"></select>
+        </div>
+        <button class="process" onclick="processFiles()">执行合并</button>
+        <button class="download" id="downloadButton" onclick="downloadFile()">下载填充后的 B 表</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script>
+        let fileA, fileB, dfB;
+
+        document.getElementById('fileA').addEventListener('change', function(event) {
+            fileA = event.target.files[0];
+            populateFilterOptions(fileA, 'filterA');
+            populateValueColumnOptions(fileA, 'valueColumn');
+        });
+
+        document.getElementById('fileB').addEventListener('change', function(event) {
+            fileB = event.target.files[0];
+            populateFilterOptions(fileB, 'filterB');
+        });
+
+        function populateFilterOptions(file, filterId) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                const headers = XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0];
+                
+                const filterSelect = document.getElementById(filterId);
+                filterSelect.innerHTML = '';
+                headers.forEach(header => {
+                    const option = document.createElement('option');
+                    option.value = header;
+                    option.text = header;
+                    filterSelect.appendChild(option);
+                });
+                filterSelect.style.display = 'block';
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function populateValueColumnOptions(file, valueColumnId) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                const headers = XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0];
+
+                const valueColumnSelect = document.getElementById(valueColumnId);
+                valueColumnSelect.innerHTML = '';
+                headers.forEach(header => {
+                    const option = document.createElement('option');
+                    option.value = header;
+                    option.text = header;
+                    valueColumnSelect.appendChild(option);
+                });
+                valueColumnSelect.style.display = 'block';
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function processFiles() {
+            if (!fileA || !fileB) {
+                alert('请上传两个 Excel 文件！');
+                return;
+            }
+
+            const readerA = new FileReader();
+            const readerB = new FileReader();
+
+            readerA.onload = function(e) {
+                const dataA = new Uint8Array(e.target.result);
+                const workbookA = XLSX.read(dataA, { type: 'array' });
+                const worksheetA = workbookA.Sheets[workbookA.SheetNames[0]];
+                const jsonA = XLSX.utils.sheet_to_json(worksheetA, { defval: '', raw: false });
+
+                readerB.onload = function(e) {
+                    const dataB = new Uint8Array(e.target.result);
+                    const workbookB = XLSX.read(dataB, { type: 'array' });
+                    const worksheetB = workbookB.Sheets[workbookB.SheetNames[0]];
+                    dfB = XLSX.utils.sheet_to_json(worksheetB, { defval: '', raw: false });
+
+                    const filterA = document.getElementById('filterA').value;
+                    const valueColumn = document.getElementById('valueColumn').value;
+                    const filterB = document.getElementById('filterB').value;
+
+                    if (!jsonA[0].hasOwnProperty(filterA)) {
+                        alert(`A 表中缺少 '${filterA}' 列。`);
+                        return;
+                    }
+                    if (!jsonA[0].hasOwnProperty(valueColumn)) {
+                        alert(`A 表中缺少 '${valueColumn}' 列。`);
+                        return;
+                    }
+                    if (!dfB[0].hasOwnProperty(filterB)) {
+                        alert(`B 表中缺少 '${filterB}' 列。`);
+                        return;
+                    }
+
+                    const valueMap = {};
+                    jsonA.forEach(row => {
+                        if (row[filterA]) {
+                            valueMap[row[filterA]] = row[valueColumn];
+                        }
+                    });
+
+                    dfB.forEach(row => {
+                        row['取值'] = valueMap[row[filterB]] || '';
+                    });
+
+                    const matchedCount = dfB.filter(row => row['取值']).length;
+                    if (matchedCount > 0) {
+                        alert(`比对完成！共匹配到 ${matchedCount} 条数据。`);
+                        document.getElementById('downloadButton').style.display = 'block';
+                    } else {
+                        alert("未匹配到数据，请检查以下几点：\n1. 确保 A 表和 B 表中运单号和单号的格式一致。\n2. 确保 A 表中的运单号和 B 表中的单号存在对应关系。");
+                    }
+                };
+                readerB.readAsArrayBuffer(fileB);
+            };
+            readerA.readAsArrayBuffer(fileA);
+        }
+
+        function downloadFile() {
+            if (!dfB) {
+                alert('请先上传 B 表文件！');
+                return;
+            }
+
+            const ws = XLSX.utils.json_to_sheet(dfB);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+
+            const defaultOutputFile = fileB.name.replace(/(\.[\w\d_-]+)$/i, '_填充后$1');
+            XLSX.writeFile(wb, defaultOutputFile);
+            alert(`填充数据已保存为: ${defaultOutputFile}`);
+        }
+    </script>
+</body>
+</html>

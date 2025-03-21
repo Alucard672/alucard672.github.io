@@ -6,60 +6,88 @@
     <title>杨磊专用数据合并工具</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background-color: #f0f0f0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f4f4f9, #e0e0e5);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             height: 100vh;
             margin: 0;
+            color: #333;
         }
         h1 {
-            font-size: 24px;
-            margin-bottom: 20px;
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            color: #2c3e50;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
         }
         .container {
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            background-color: #fff;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
             width: 90%;
             max-width: 600px;
         }
         .row {
             display: flex;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 1.5rem;
         }
         .row label {
-            width: 150px;
-            font-size: 16px;
+            width: 180px;
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: #555;
         }
-        .row input[type="file"], .row select {
+        .row input[type="file"],
+        .row select {
             flex: 1;
-            font-size: 16px;
+            font-size: 1rem;
+            padding: 0.75rem;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+        .row input[type="file"]:focus,
+        .row select:focus {
+            border-color: #007bff;
         }
         button {
-            font-size: 16px;
-            padding: 10px 20px;
-            margin-top: 10px;
+            font-size: 1rem;
+            padding: 0.8rem 1.5rem;
+            margin-top: 1.5rem;
             border: none;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
         }
         button.upload {
-            background-color: #4CAF50;
+            background-color: #28a745;
             color: white;
+        }
+        button.upload:hover {
+            background-color: #218838;
         }
         button.process {
-            background-color: #FF9800;
+            background-color: #ffc107;
             color: white;
         }
+        button.process:hover {
+            background-color: #e0a800;
+        }
         button.download {
-            background-color: #2196F3;
+            background-color: #007bff;
             color: white;
             display: none;
+        }
+        button.download:hover {
+            background-color: #0069d9;
+        }
+        button:active {
+            transform: scale(0.98);
         }
     </style>
 </head>
@@ -216,8 +244,63 @@
                 return;
             }
 
-            const ws = XLSX.utils.json_to_sheet(dfB);
+            const headers = Object.keys(dfB[0]);
+            const costColumnIndex = 6; // G 列索引为 6
+
+            let total = 0;
+            const aoa = [headers];
+            const customNumberFormat = '0.00';
+
+            // 创建完整样式表
+            const styles = {
+                numFmts: [
+                    { numFmtId: 0, formatCode: 'General' },
+                    { numFmtId: 1, formatCode: customNumberFormat }
+                ],
+                fonts: [
+                    { name: 'Calibri', sz: 11, color: { rgb: 'FF000000' }, bold: false, italic: false, underline: false }
+                ],
+                fills: [
+                    { patternType: 'none' },
+                    { patternType: 'gray125' }
+                ],
+                borders: [
+                    { left: { style: 'none' }, right: { style: 'none' }, top: { style: 'none' }, bottom: { style: 'none' } }
+                ],
+                cellXfs: [
+                    { numFmtId: 0, fontId: 0, fillId: 0, borderId: 0 },
+                    { numFmtId: 1, fontId: 0, fillId: 0, borderId: 0 }
+                ]
+            };
+
+            dfB.forEach(row => {
+                const rowData = [];
+                headers.forEach((header, index) => {
+                    if (index === costColumnIndex) {
+                        const value = row[header];
+                        const numValue = parseFloat(value);
+                        if (!isNaN(numValue) && isFinite(numValue)) {
+                            total += numValue;
+                            rowData.push({ t: 'n', v: numValue, s: { xfId: 1 } });
+                        } else {
+                            rowData.push(value);
+                        }
+                    } else {
+                        rowData.push(row[header]);
+                    }
+                });
+                aoa.push(rowData);
+            });
+
+            // 添加汇总行
+            const summaryRow = new Array(headers.length).fill('');
+            summaryRow[costColumnIndex] = { t: 'n', v: total, s: { xfId: 1 } };
+            aoa.push(summaryRow);
+
+            const ws = XLSX.utils.aoa_to_sheet(aoa);
             const wb = XLSX.utils.book_new();
+            wb.Styles = styles;
+
             XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
 
             const defaultOutputFile = fileB.name.replace(/(\.[\w\d_-]+)$/i, '_填充后$1');
@@ -226,4 +309,4 @@
         }
     </script>
 </body>
-</html>
+</html>    
